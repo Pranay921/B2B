@@ -1,0 +1,156 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  SELLER
+  BUYER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DimensionType {
+  WEIGHT
+  VOLUME
+  COUNT
+}
+
+enum OrderStatus {
+  PENDING
+  APPROVED
+  PROCESSING
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum QuotationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CONVERTED
+}
+
+enum InventoryHistoryType {
+  ADD
+  REDUCE
+  UPDATE
+}
+
+model User {
+  id               String             @id @default(uuid())
+  email            String             @unique
+  password         String
+  name             String
+  role             Role               @default(BUYER)
+  status           UserStatus         @default(ACTIVE)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  products         Product[]          @relation("SellerProducts")
+  quotations       Quotation[]        @relation("BuyerQuotations")
+  orders           Order[]            @relation("BuyerOrders")
+  inventoryHistory InventoryHistory[]
+  activityLogs     ActivityLog[]
+}
+
+model Product {
+  id                String             @id @default(uuid())
+  name              String
+  sku               String             @unique
+  description       String?
+  category          String
+  baseUnit          String
+  dimensionType     DimensionType
+  inventoryQuantity Float              @default(0.0)
+  basePrice         Float              @default(0.0)
+  sellerId          String
+  seller            User               @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  quotationItems    QuotationItem[]
+  orderItems        OrderItem[]
+  inventoryHistory  InventoryHistory[]
+}
+
+model InventoryHistory {
+  id               String               @id @default(uuid())
+  productId        String
+  product          Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type             InventoryHistoryType
+  quantityChanged  Float
+  previousQuantity Float
+  newQuantity      Float
+  note             String?
+  userId           String
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime             @default(now())
+}
+
+model Quotation {
+  id          String          @id @default(uuid())
+  buyerId     String
+  buyer       User            @relation("BuyerQuotations", fields: [buyerId], references: [id], onDelete: Cascade)
+  status      QuotationStatus @default(PENDING)
+  totalAmount Float           @default(0.0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  items       QuotationItem[]
+  orders      Order[]
+}
+
+model QuotationItem {
+  id               String    @id @default(uuid())
+  quotationId      String
+  quotation        Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity         Float
+  unit             String
+  baseQuantity     Float
+  pricePerBaseUnit Float
+  totalPrice       Float
+}
+
+model Order {
+  id          String      @id @default(uuid())
+  buyerId     String
+  buyer       User        @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Cascade)
+  status      OrderStatus @default(PENDING)
+  totalAmount Float       @default(0.0)
+  quotationId String?
+  quotation   Quotation?  @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       OrderItem[]
+}
+
+model OrderItem {
+  id               String  @id @default(uuid())
+  orderId          String
+  order            Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity         Float
+  unit             String
+  baseQuantity     Float
+  pricePerBaseUnit Float
+  totalPrice       Float
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
